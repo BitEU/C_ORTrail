@@ -1,17 +1,16 @@
 @echo off
-REM Build script for BBC Baseball Simulation
+REM Build script for Oregon Trail Simulation
 REM Unified script for MSVC and MinGW compilation
-REM Supports selecting between MLB and World Series 2024 player data
+REM Supports cross-compilation for UNIVAC compatibility
 
 echo.
 echo ========================================
-echo   BBC Baseball - Unified Build Script
+echo   Oregon Trail - Unified Build Script
 echo ========================================
 echo.
 
 set COMPILER=
 set UNIVAC_BUILD=
-set PLAYERS=
 
 REM ============================================================================
 REM STEP 1: SELECT PLATFORM
@@ -28,7 +27,7 @@ if "%PLATFORM%"=="1" goto SELECT_COMPILER
 if "%PLATFORM%"=="2" (
     set COMPILER=1
     set UNIVAC_BUILD=1
-    goto SELECT_PLAYERS
+    goto UNIVAC_BUILD
 )
 echo Invalid choice. Defaulting to Windows.
 set PLATFORM=1
@@ -45,46 +44,12 @@ echo.
 set /p COMPILER="Enter your choice (default: MinGW): "
 
 if "%COMPILER%"=="" set COMPILER=1
-if "%COMPILER%"=="1" goto SELECT_PLAYERS
-if "%COMPILER%"=="2" goto SELECT_PLAYERS
+if "%COMPILER%"=="1" goto MINGW_BUILD
+if "%COMPILER%"=="2" goto MSVC_BUILD
 echo Invalid choice. Defaulting to MinGW.
 set COMPILER=1
 
-REM ============================================================================
-REM STEP 3: SELECT PLAYER DATA
-REM ============================================================================
-:SELECT_PLAYERS
-echo.
-echo Please select player data:
-echo   Press ENTER or 1 for MLB League Players (players.c)
-echo   Press 2 for World Series 2024 Players (World_Series_2024_players.c)
-echo.
-set /p PLAYERS="Enter your choice (default: MLB): "
-
-if "%PLAYERS%"=="" set PLAYERS=1
-if "%PLAYERS%"=="1" (
-    set PLAYERS_FILE=players.c
-    set PLAYERS_DESC=MLB League Players
-    goto PLAYERS_SELECTED
-)
-if "%PLAYERS%"=="2" (
-    set PLAYERS_FILE=World_Series_2024_players.c
-    set PLAYERS_DESC=World Series 2024 Players
-    goto PLAYERS_SELECTED
-)
-echo Invalid choice. Defaulting to MLB League Players.
-set PLAYERS_FILE=players.c
-set PLAYERS_DESC=MLB League Players
-
-:PLAYERS_SELECTED
-echo.
-echo Selected: %PLAYERS_DESC%
-echo.
-
 REM Jump to the selected compiler build
-if defined UNIVAC_BUILD goto UNIVAC_BUILD
-if "%COMPILER%"=="1" goto MINGW_BUILD
-if "%COMPILER%"=="2" goto MSVC_BUILD
 goto MINGW_BUILD
 
 REM ============================================================================
@@ -107,38 +72,27 @@ echo.
 
 REM Clean previous build artifacts
 echo Cleaning previous build artifacts...
-if exist baseball_univac.exe del /Q baseball_univac.exe
-if exist baseball_univac.o del /Q baseball_univac.o
-if exist players_univac.o del /Q players_univac.o
+if exist oregon_univac.exe del /Q oregon_univac.exe
+if exist oregon_univac.o del /Q oregon_univac.o
 if exist *.o del /Q *.o
 echo.
 
 echo Building for UNIVAC platform...
 echo Compiler: GCC
-echo Player Data: %PLAYERS_DESC%
 echo Platform Flags: -DUNIVAC
 echo.
 
-echo Compiling baseball.c...
-gcc -c -DUNIVAC -O2 -Wall baseball.c -o baseball_univac.o
+echo Compiling oregon.c...
+gcc -c -DUNIVAC -O2 -Wall -Wextra -std=c99 oregon.c -o oregon_univac.o
 
 if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Failed to compile baseball.c
-    pause
-    exit /b 1
-)
-
-echo Compiling %PLAYERS_FILE%...
-gcc -c -DUNIVAC -O2 -Wall %PLAYERS_FILE% -o players_univac.o
-
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Failed to compile %PLAYERS_FILE%
+    echo ERROR: Failed to compile oregon.c
     pause
     exit /b 1
 )
 
 echo Linking...
-gcc -o baseball_univac.exe baseball_univac.o players_univac.o
+gcc -o oregon_univac.exe oregon_univac.o -lm
 
 if %ERRORLEVEL% EQU 0 (
     echo.
@@ -146,19 +100,21 @@ if %ERRORLEVEL% EQU 0 (
     echo   BUILD SUCCESSFUL - UNIVAC
     echo ========================================
     echo.
-    echo Output: baseball_univac.exe
+    echo Output: oregon_univac.exe
 
     REM Display file size
-    for %%A in (baseball_univac.exe^) do (
+    for %%A in (oregon_univac.exe^) do (
         echo File size: %%~zA bytes
     )
     echo.
     echo Platform: UNIVAC ^(cross-compiled with -DUNIVAC^)
     echo.
     echo NOTE: This executable is built for UNIVAC compatibility:
-    echo   - No Windows dependencies ^(windows.h, time.h^)
-    echo   - No runtime roster initialization
+    echo   - No Windows dependencies ^(windows.h, time.h limited^)
+    echo   - Fixed random seed for deterministic behavior
     echo   - Uses strncpy instead of strcpy_s
+    echo.
+    echo To run the game, type: oregon_univac.exe
     echo.
     goto :EOF
 ) else (
@@ -195,9 +151,8 @@ echo.
 
 REM Clean previous build artifacts
 echo Cleaning previous build artifacts...
-if exist baseball_mingw.exe del /Q baseball_mingw.exe
-if exist baseball.obj del /Q baseball.obj
-if exist players.obj del /Q players.obj
+if exist oregon_mingw.exe del /Q oregon_mingw.exe
+if exist oregon.obj del /Q oregon.obj
 if exist *.o del /Q *.o
 echo.
 
@@ -222,7 +177,7 @@ REM ============================================================================
 set OPTIMIZE_FLAGS=-O3 -march=native -mtune=native -flto -ffast-math -funroll-loops -finline-functions -fomit-frame-pointer -fno-stack-protector -fmerge-all-constants -ftree-vectorize -fprefetch-loop-arrays -msse4.2
 
 REM Warning flags (keep for code quality)
-set WARNING_FLAGS=-Wall -Wextra -Wno-unused-parameter
+set WARNING_FLAGS=-Wall -Wextra -Wno-unused-parameter -std=c99
 
 REM Additional performance flags
 set PERF_FLAGS=-DNDEBUG -pipe
@@ -232,15 +187,14 @@ set LINKER_FLAGS=-s -static -Wl,--gc-sections -Wl,--strip-all -Wl,-O3
 
 echo Building with aggressive optimizations...
 echo Compiler: MinGW GCC
-echo Player Data: %PLAYERS_DESC%
 echo Flags: %OPTIMIZE_FLAGS%
 echo.
 
 echo Compiling and linking...
 gcc %WARNING_FLAGS% %OPTIMIZE_FLAGS% %PERF_FLAGS% ^
-    -o baseball_mingw.exe ^
-    baseball.c %PLAYERS_FILE% ^
-    %LINKER_FLAGS%
+    -o oregon_mingw.exe ^
+    oregon.c ^
+    %LINKER_FLAGS% -lm
 
 if %ERRORLEVEL% EQU 0 (
     echo.
@@ -248,16 +202,16 @@ if %ERRORLEVEL% EQU 0 (
     echo   BUILD SUCCESSFUL
     echo ========================================
     echo.
-    echo Output: baseball_mingw.exe
+    echo Output: oregon_mingw.exe
 
     REM Display file size
-    for %%A in (baseball_mingw.exe) do (
+    for %%A in (oregon_mingw.exe) do (
         echo File size: %%~zA bytes
     )
     echo.
     echo Optimization level: MAXIMUM (-O3 + LTO + native CPU^)
     echo.
-    echo To run the game, type: baseball_mingw.exe
+    echo To run the game, type: oregon_mingw.exe
     echo.
 ) else (
     echo.
@@ -294,12 +248,25 @@ if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\
 
 echo.
 echo Compiler: MSVC (Visual Studio 2022)
-echo Player Data: %PLAYERS_DESC%
 echo Compiling with MSVC...
 echo.
 
-REM Compile source files
-cl /W4 /O2 /Fe:baseball.exe baseball.c %PLAYERS_FILE%
+REM MSVC Optimization flags
+REM /O2     : Maximum optimization (speed)
+REM /Ox     : Maximum optimization 
+REM /Ob2    : Inline function expansion
+REM /Oi     : Enable intrinsic functions
+REM /Ot     : Favor speed over size
+REM /Oy     : Omit frame pointers
+REM /GL     : Whole program optimization
+REM /LTCG   : Link-time code generation
+REM /arch:AVX2 : Use AVX2 instructions
+
+set MSVC_OPTIMIZE=/O2 /Ox /Ob2 /Oi /Ot /Oy /GL /arch:AVX2
+set MSVC_LINKER=/LTCG /OPT:REF /OPT:ICF
+
+REM Compile source file with maximum optimizations
+cl /W4 %MSVC_OPTIMIZE% /Fe:oregon.exe oregon.c /link %MSVC_LINKER%
 
 if %ERRORLEVEL% EQU 0 (
     echo.
@@ -307,17 +274,43 @@ if %ERRORLEVEL% EQU 0 (
     echo   BUILD SUCCESSFUL
     echo ========================================
     echo.
-    echo Output: baseball.exe
+    echo Output: oregon.exe
+
+    REM Display file size
+    for %%A in (oregon.exe) do (
+        echo File size: %%~zA bytes
+    )
     echo.
-    echo To run: baseball.exe
+    echo Optimization level: MAXIMUM (MSVC /O2 + Whole Program Optimization^)
+    echo.
+    echo To run the game, type: oregon.exe
+    echo.
 ) else (
     echo.
     echo ========================================
     echo   BUILD FAILED
     echo ========================================
     echo.
+    echo Check the error messages above for details.
     pause
     exit /b 1
 )
 
 exit /b 0
+
+REM ============================================================================
+REM ADDITIONAL BUILD OPTIONS
+REM ============================================================================
+REM
+REM For debugging builds, you can manually run:
+REM   gcc -g -O0 -DDEBUG -Wall -Wextra oregon.c -o oregon_debug.exe -lm
+REM
+REM For profile-guided optimization with GCC:
+REM   Step 1: gcc -O3 -fprofile-generate oregon.c -o oregon_pgo.exe -lm
+REM   Step 2: Run oregon_pgo.exe with typical usage patterns
+REM   Step 3: gcc -O3 -fprofile-use oregon.c -o oregon_optimized.exe -lm
+REM
+REM For static analysis:
+REM   gcc -Wall -Wextra -Wpedantic -Wformat=2 -Wconversion oregon.c -lm
+REM
+REM ============================================================================
